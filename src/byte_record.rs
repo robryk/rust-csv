@@ -369,14 +369,17 @@ impl ByteRecord {
         if length == 0 {
             return;
         }
-        // TODO: We could likely do this in place, but for now, we allocate.
-        let mut trimmed =
-            ByteRecord::with_capacity(self.as_slice().len(), self.len());
-        trimmed.set_position(self.position().cloned());
-        for field in self.iter() {
-            trimmed.push_field(trim_ascii(field));
+        let mut read_pos = 0;
+        let mut write_pos = 0;
+        for end_pos in self.0.bounds.ends.iter_mut() {
+            let actual_start = (read_pos..*end_pos).skip_while(|idx| self.0.fields[*idx].is_ascii_whitespace()).next().unwrap_or(*end_pos);
+            self.0.fields.copy_within(actual_start..*end_pos, write_pos);
+            let new_end_pos = write_pos + (*end_pos - actual_start);
+            let new_end_pos = (write_pos+1..new_end_pos+1).rev().skip_while(|idx| self.0.fields[idx-1].is_ascii_whitespace()).next().unwrap_or(write_pos);
+            read_pos = *end_pos;
+            write_pos = new_end_pos;
+            *end_pos = new_end_pos;
         }
-        *self = trimmed;
     }
 
     /// Add a new field to this record.
